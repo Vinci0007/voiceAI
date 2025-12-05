@@ -1,0 +1,141 @@
+.mode-selector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.mode-selector h1 {
+  font-size: 3rem;
+  color: white;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.subtitle {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.mode-cards {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 1000px;
+}
+
+.mode-card {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  width: 350px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.mode-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+}
+
+.mode-card.conference {
+  border-top: 4px solid #2196f3;
+}
+
+.mode-card.chat {
+  border-top: 4px solid #4caf50;
+}
+
+.mode-icon {
+  font-size: 4rem;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.mode-card h2 {
+  font-size: 1.8rem;
+  color: #333;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.mode-description {
+  font-size: 1rem;
+  color: #666;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.mode-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem 0;
+}
+
+.mode-features li {
+  padding: 0.5rem 0;
+  color: #555;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+}
+
+.mode-features li::before {
+  content: '✓';
+  color: #4caf50;
+  font-weight: bold;
+  margin-right: 0.5rem;
+  font-size: 1.2rem;
+}
+
+.mode-button {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.mode-card.conference .mode-button {
+  background: #2196f3;
+}
+
+.mode-card.conference .mode-button:hover {
+  background: #1976d2;
+}
+
+.mode-card.chat .mode-button {
+  background: #4caf50;
+}
+
+.mode-card.chat .mode-button:hover {
+  background: #388e3c;
+}
+
+@media (max-width: 768px) {
+  .mode-selector h1 {
+    font-size: 2rem;
+  }
+
+  .mode-cards {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .mode-card {
+    width: 100%;
+    max-width: 400px;
+  }
+}
