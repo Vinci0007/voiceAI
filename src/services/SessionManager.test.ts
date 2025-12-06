@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import * as fc from 'fast-check';
 import { SessionManager } from './SessionManager';
-import { SessionMode, Participant } from '@/types';
+import { SessionMode, SessionStatus, Participant } from '@/types';
 import * as TauriAPI from '@/api/tauri';
 
 // Mock Tauri API
@@ -439,6 +440,214 @@ describe('SessionManager', () => {
       }
 
       expect(sessionManager.canAddMoreParticipants(session.id)).toBe(false);
+    });
+  });
+
+  describe('Property 3: Mode Switching Availability', () => {
+    /**
+     * Feature: realtime-voice-translation, Property 3: 模式切换可用性
+     * Validates: Requirements 1.4
+     * 
+     * Property: For any active session, mode switching functionality should always be available.
+     * 
+     * This property verifies that:
+     * 1. Mode switching can be called on any active session
+     * 2. The switchMode method does not throw errors for valid mode switches
+     * 3. Mode switching is available regardless of the current mode
+     * 
+     * Note: Mode switching may fail validation (e.g., switching to chat with >2 participants),
+     * but the functionality itself should always be available to attempt.
+     */
+    it('should allow mode switching for any active session', async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          // Generate arbitrary user IDs
+          fc.string({ minLength: 1, maxLength: 50 }),
+          // Generate arbitrary initial mode
+          fc.constantFrom(SessionMode.CONFERENCE, SessionMode.CHAT),
+          // Generate arbitrary target mode
+          fc.constantFrom(SessionMode.CONFERENCE, SessionMode.CHAT),
+          // Generate number of participants (0-2 to ensure valid chat mode switch)
+          fc.integer({ min: 0, max: 2 }),
+          async (userId, initialMode, targetMode, participantCount) => {
+            // Create a new session manager for each test
+            const manager = new SessionManager();
+
+            // Mock the database session creation
+            const mockDbSession = {
+              id: `session-${Math.random()}`,
+              mode: initialMode,
+              user_id: userId,
+              created_at: new Date().toISOString(),
+              status: 'active',
+            };
+
+            vi.mocked(TauriAPI.createSession).mockResolvedValue(mockDbSession);
+
+            // Create session with initial mode
+            const session = await manager.createSession(initialMode, userId);
+
+            // Add participants (within valid range for chat mode)
+            for (let i = 0; i < participantCount; i++) {
+              const participant: Participant = {
+                id: `participant-${i}`,
+                name: `Participant ${i}`,
+                preferredLanguage: 'en',
+                joinedAt: new Date(),
+                isMuted: false,
+              };
+              manager.addParticipant(session.id, participant);
+            }
+
+            // Verify session is active
+            const activeSession = manager.getSession(session.id);
+            expect(activeSession).not.toBeNull();
+            expect(activeSession?.state.status).toBe(SessionStatus.ACTIVE);
+
+            // Property verification: Mode switching should be available (callable)
+            // It should not throw an error for valid switches
+            let switchSucceeded = false;
+            let switchError: Error | null = null;
+
+            try {
+              manager.switchMode(session.id, targetMode);
+              switchSucceeded = true;
+            } catch (error) {
+              switchError = error as Error;
+            }
+
+            // The switchMode method should be callable (functionality is available)
+            // If it fails, it should be due to validation, not unavailability
+            if (!switchSucceeded && switchError) {
+              // If switching failed, it should be for a valid reason (validation)
+              // not because the functionality is unavailable
+              expect(switchError.message).toMatch(
+                /Cannot switch to chat mode: more than 2 participants in session/
+              );
+            } else {
+              // If switching succeeded, verify the mode was changed
+              const updatedSession = manager.getSession(session.id);
+              expect(updatedSession?.mode).toBe(targetMode);
+            }
+
+            // Property: The session should still be active after attempting mode switch
+            const finalSession = manager.getSession(session.id);
+            expect(finalSession).not.toBeNull();
+            expect(finalSession?.state.status).toBe(SessionStatus.ACTIVE);
+          }
+        ),
+        { numRuns: 100 } // Run 100 iterations as specified in design doc
+      );
+    });
+
+    /**
+     * Property 3 (Specific Case): Mode switching preserves session availability
+     * 
+     * Verifies that after a successful mode switch, the session remains active
+     * and mode switching continues to be available.
+     */
+    it('should allow repeated mode switching on the same session', async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          fc.string({ minLength: 1, maxLength: 50 }),
+          fc.array(fc.constantFrom(SessionMode.CONFERENCE, SessionMode.CHAT), {
+            minLength: 2,
+            maxLength: 5,
+          }),
+          async (userId, modeSequence) => {
+            const manager = new SessionManager();
+
+            // Create initial session
+            const mockDbSession = {
+              id: `session-${Math.random()}`,
+              mode: SessionMode.CONFERENCE,
+              user_id: userId,
+              created_at: new Date().toISOString(),
+              status: 'active',
+            };
+
+            vi.mocked(TauriAPI.createSession).mockResolvedValue(mockDbSession);
+            const session = await manager.createSession(SessionMode.CONFERENCE, userId);
+
+            // Property: Mode switching should be available multiple times
+            for (const targetMode of modeSequence) {
+              const currentSession = manager.getSession(session.id);
+              expect(currentSession).not.toBeNull();
+              expect(currentSession?.state.status).toBe(SessionStatus.ACTIVE);
+
+              // Attempt mode switch
+              try {
+                manager.switchMode(session.id, targetMode);
+                
+                // Verify mode was changed
+                const updatedSession = manager.getSession(session.id);
+                expect(updatedSession?.mode).toBe(targetMode);
+              } catch (error) {
+                // If it fails, it should be due to validation, not unavailability
+                // For this test, we're not adding participants, so switches should succeed
+                throw error;
+              }
+            }
+
+            // Property: Session should still be active after all switches
+            const finalSession = manager.getSession(session.id);
+            expect(finalSession).not.toBeNull();
+            expect(finalSession?.state.status).toBe(SessionStatus.ACTIVE);
+          }
+        ),
+        { numRuns: 100 }
+      );
+    });
+
+    /**
+     * Property 3 (Edge Case): Mode switching availability for sessions with different states
+     * 
+     * Verifies that mode switching is available for sessions in different states,
+     * but may have different outcomes based on session state.
+     */
+    it('should have mode switching functionality available regardless of session state', async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          fc.string({ minLength: 1, maxLength: 50 }),
+          fc.constantFrom(SessionMode.CONFERENCE, SessionMode.CHAT),
+          fc.constantFrom(SessionMode.CONFERENCE, SessionMode.CHAT),
+          async (userId, initialMode, targetMode) => {
+            const manager = new SessionManager();
+
+            const mockDbSession = {
+              id: `session-${Math.random()}`,
+              mode: initialMode,
+              user_id: userId,
+              created_at: new Date().toISOString(),
+              status: 'active',
+            };
+
+            vi.mocked(TauriAPI.createSession).mockResolvedValue(mockDbSession);
+            const session = await manager.createSession(initialMode, userId);
+
+            // Property: switchMode method should be callable (not throw "method not found")
+            // The method exists and can be invoked
+            expect(typeof manager.switchMode).toBe('function');
+
+            // Verify we can call the method (functionality is available)
+            try {
+              manager.switchMode(session.id, targetMode);
+              
+              // If successful, mode should be changed
+              const updatedSession = manager.getSession(session.id);
+              expect(updatedSession?.mode).toBe(targetMode);
+            } catch (error) {
+              // If it throws, it should be a validation error, not a "method unavailable" error
+              expect(error).toBeInstanceOf(Error);
+              const errorMessage = (error as Error).message;
+              
+              // Should not be errors about method unavailability
+              expect(errorMessage).not.toMatch(/undefined|not a function|not available/i);
+            }
+          }
+        ),
+        { numRuns: 100 }
+      );
     });
   });
 });

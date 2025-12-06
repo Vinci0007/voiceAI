@@ -8,3 +8,5 @@ export { ModeSelector } from './ModeSelector';
 export { SessionView } from './SessionView';
 export { SettingsView } from './SettingsView';
 export type { AppSettings } from './SettingsView';
+export { NetworkStatusIndicator } from './NetworkStatusIndicator';
+export type { NetworkStatusIndicatorProps } from './NetworkStatusIndicator';

@@ -244,4 +244,44 @@ impl Database {
         )?;
         Ok(())
     }
+
+    pub fn get_all_speakers(&self) -> Result<Vec<Speaker>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, name, preferred_language, voiceprint_data, created_at FROM speakers")?;
+
+        let speakers = stmt
+            .query_map([], |row| {
+                Ok(Speaker {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    preferred_language: row.get(2)?,
+                    voiceprint_data: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(speakers)
+    }
+
+    pub fn get_speaker(&self, speaker_id: &str) -> Result<Option<Speaker>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, name, preferred_language, voiceprint_data, created_at FROM speakers WHERE id = ?1")?;
+
+        let mut speakers = stmt
+            .query_map(params![speaker_id], |row| {
+                Ok(Speaker {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    preferred_language: row.get(2)?,
+                    voiceprint_data: row.get(3)?,
+                    created_at: row.get(4)?,
+                })
+            })?
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(speakers.pop())
+    }
 }

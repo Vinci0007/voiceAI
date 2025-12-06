@@ -6,10 +6,18 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:optimize": "tsc && vite build --mode production",
+    "build:full": "node scripts/build.js build",
+    "build:check": "node scripts/build.js check",
+    "build:clean": "node scripts/build.js clean",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "tauri:build:windows": "tauri build --target x86_64-pc-windows-msvc",
+    "tauri:build:linux": "tauri build --target x86_64-unknown-linux-gnu",
+    "tauri:build:debug": "tauri build --debug",
+    "bundle:analyze": "npm run build -- --mode analyze",
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:pbt": "vitest --run --grep 'Property'"

@@ -3,9 +3,11 @@
 
 mod database;
 mod audio_processor;
+mod speaker_identifier;
 
 use database::Database;
 use audio_processor::{AudioProcessor, ProcessedAudio};
+use speaker_identifier::{SpeakerIdentifier, SpeakerInfo};
 use std::sync::Mutex;
 use tauri::{Manager, State};
 
@@ -13,6 +15,7 @@ use tauri::{Manager, State};
 pub struct AppState {
     db: Mutex<Database>,
     audio_processor: Mutex<AudioProcessor>,
+    speaker_identifier: Mutex<SpeakerIdentifier>,
 }
 
 fn main() {
@@ -33,9 +36,12 @@ fn main() {
             let audio_processor = AudioProcessor::new()
                 .expect("Failed to initialize audio processor");
             
+            let speaker_identifier = SpeakerIdentifier::new();
+            
             app.manage(AppState {
                 db: Mutex::new(db),
                 audio_processor: Mutex::new(audio_processor),
+                speaker_identifier: Mutex::new(speaker_identifier),
             });
             
             Ok(())
@@ -50,6 +56,11 @@ fn main() {
             process_audio,
             get_input_devices,
             get_output_devices,
+            identify_speaker,
+            register_speaker,
+            update_speaker_voiceprint,
+            load_speaker_voiceprints,
+            get_speaker_ids,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -140,4 +151,67 @@ fn get_input_devices(state: State<AppState>) -> Result<Vec<String>, String> {
 fn get_output_devices(state: State<AppState>) -> Result<Vec<String>, String> {
     let processor = state.audio_processor.lock().unwrap();
     processor.get_output_devices()
+}
+
+// Speaker identification commands
+#[tauri::command]
+fn identify_speaker(
+    audio_data: Vec<f32>,
+    sample_rate: u32,
+    state: State<AppState>,
+) -> Result<SpeakerInfo, String> {
+    let mut identifier = state.speaker_identifier.lock().unwrap();
+    Ok(identifier.identify(&audio_data, sample_rate))
+}
+
+#[tauri::command]
+fn register_speaker(
+    speaker_id: String,
+    audio_data: Vec<f32>,
+    sample_rate: u32,
+    state: State<AppState>,
+) -> Result<String, String> {
+    let mut identifier = state.speaker_identifier.lock().unwrap();
+    let embedding = identifier.extract_voiceprint(&audio_data, sample_rate);
+    Ok(identifier.register_speaker(&speaker_id, embedding))
+}
+
+#[tauri::command]
+fn update_speaker_voiceprint(
+    speaker_id: String,
+    audio_data: Vec<f32>,
+    sample_rate: u32,
+    state: State<AppState>,
+) -> Result<(), String> {
+    let mut identifier = state.speaker_identifier.lock().unwrap();
+    identifier.update_voiceprint(&speaker_id, &audio_data, sample_rate);
+    
+    // Save updated voiceprint to database
+    let voiceprint_data = identifier.serialize_voiceprint(&speaker_id)?;
+    let db = state.db.lock().unwrap();
+    db.update_voiceprint(&speaker_id, &voiceprint_data)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn load_speaker_voiceprints(state: State<AppState>) -> Result<(), String> {
+    let db = state.db.lock().unwrap();
+    let speakers = db.get_all_speakers().map_err(|e| e.to_string())?;
+    
+    let mut identifier = state.speaker_identifier.lock().unwrap();
+    
+    for speaker in speakers {
+        if let Some(voiceprint_data) = speaker.voiceprint_data {
+            identifier.load_voiceprint(&speaker.id, &voiceprint_data)
+                .map_err(|e| format!("Failed to load voiceprint for {}: {}", speaker.id, e))?;
+        }
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
+fn get_speaker_ids(state: State<AppState>) -> Result<Vec<String>, String> {
+    let identifier = state.speaker_identifier.lock().unwrap();
+    Ok(identifier.get_speaker_ids())
 }
