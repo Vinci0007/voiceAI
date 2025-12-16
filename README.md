@@ -99,8 +99,6 @@ npm run test:watch
 │   │   ├── audio_processor.rs  # 音频处理
 │   │   └── speaker_identifier.rs  # 说话人识别
 │   └── Cargo.toml         # Rust 依赖配置
-├── .kiro/                 # Kiro 规范文档
-│   └── specs/             # 功能规范
 ├── package.json           # Node.js 依赖配置
 └── vite.config.ts         # Vite 构建配置
 ```
